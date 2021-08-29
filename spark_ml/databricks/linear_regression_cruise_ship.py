@@ -1,3 +1,5 @@
+
+### "Load the Cruise_ship CSV File, have Spark infer the data types."
 dflr=spark.read.format("csv").option("header","true").option("inferSchema","true").load("/FileStore/tables/cruise_ship_info-3.csv")
 dflr.show()
 
@@ -28,6 +30,10 @@ dflr.show()
 +-----------+-----------+---+------------------+----------+------+------+-----------------+----+
 only showing top 20 rows
 """
+
+
+# checking the schema of the data
+
 dflr.printSchema()
 
 """
@@ -43,9 +49,8 @@ root
  |-- crew: double (nullable = true)
 """
 
-dflr.printSchema
 
-#Out[90]: <bound method DataFrame.printSchema of DataFrame[Ship_name: string, Cruise_line: string, Age: int, Tonnage: double, passengers: double, length: double, cabins: double, passenger_density: double, crew: double]>
+#displying the first five rows of the data
 dflr.head(5)
 """
 Out[91]: [Row(Ship_name='Journey', Cruise_line='Azamara', Age=6, Tonnage=30.276999999999997, passengers=6.94, length=5.94, cabins=3.55, passenger_density=42.64, crew=3.55),
@@ -54,6 +59,9 @@ Out[91]: [Row(Ship_name='Journey', Cruise_line='Azamara', Age=6, Tonnage=30.2769
  Row(Ship_name='Conquest', Cruise_line='Carnival', Age=11, Tonnage=110.0, passengers=29.74, length=9.53, cabins=14.88, passenger_density=36.99, crew=19.1),
  Row(Ship_name='Destiny', Cruise_line='Carnival', Age=17, Tonnage=101.353, passengers=26.42, length=8.92, cabins=13.21, passenger_density=38.36, crew=10.0)]
 """
+
+#i did group groupBy with cruise_line and count
+
 dflr.groupBy('Cruise_line').count().show()
 """
 +-----------------+-----+
@@ -81,20 +89,32 @@ dflr.groupBy('Cruise_line').count().show()
 |  Royal_Caribbean|   23|
 +-----------------+-----+
 """
+
+#import the StringIndexer and add a new columns named cruise_cat
+
 from pyspark.ml.feature import StringIndexer
 indexer=StringIndexer(inputCol='Cruise_line',outputCol='cruise_cat')
 indexed=indexer.fit(dflr).transform(dflr)
 indexed.head(5)
 """
+
+
 Out[96]: [Row(Ship_name='Journey', Cruise_line='Azamara', Age=6, Tonnage=30.276999999999997, passengers=6.94, length=5.94, cabins=3.55, passenger_density=42.64, crew=3.55, cruise_cat=16.0),
  Row(Ship_name='Quest', Cruise_line='Azamara', Age=6, Tonnage=30.276999999999997, passengers=6.94, length=5.94, cabins=3.55, passenger_density=42.64, crew=3.55, cruise_cat=16.0),
  Row(Ship_name='Celebration', Cruise_line='Carnival', Age=26, Tonnage=47.262, passengers=14.86, length=7.22, cabins=7.43, passenger_density=31.8, crew=6.7, cruise_cat=1.0),
  Row(Ship_name='Conquest', Cruise_line='Carnival', Age=11, Tonnage=110.0, passengers=29.74, length=9.53, cabins=14.88, passenger_density=36.99, crew=19.1, cruise_cat=1.0),
  Row(Ship_name='Destiny', Cruise_line='Carnival', Age=17, Tonnage=101.353, passengers=26.42, length=8.92, cabins=13.21, passenger_density=38.36, crew=10.0, cruise_cat=1.0)]
 """
+
+
+#import vector and vectoAssemnler
 from pyspark.ml.linalg import Vector
 from pyspark.ml.feature import VectorAssembler
+
+#checking the columns name
 indexed.columns
+
+
 """Out[99]: ['Ship_name',
  'Cruise_line',
  'Age',
@@ -106,6 +126,7 @@ indexed.columns
  'crew',
  'cruise_cat']"""
 
+# creaetd assembler and transform the indexed variable
 assembler=VectorAssembler(inputCols=['Age',
  'Tonnage',
  'passengers',
@@ -115,7 +136,12 @@ assembler=VectorAssembler(inputCols=['Age',
  'cruise_cat'],outputCol='features')
 output=assembler.transform(indexed)
 final_data=output.select(['features','crew'])
+
+# spaliting the train_data and test_data with 70% to 30%
 train_data,test_data=final_data.randomSplit([0.7,0.3])
+
+
+#describe the train_data it predict count, mean,min,max,sd
 train_data.describe().show()
 
 """
@@ -128,8 +154,13 @@ train_data.describe().show()
 |    min|             0.59|
 |    max|             21.0|
 +-------+-----------------+
+"""
+
+#describe the test_data it predict count, mean,min,max,sd
 
 test_data.describe().show()
+
+"""
 +-------+------------------+
 |summary|              crew|
 +-------+------------------+
@@ -140,6 +171,9 @@ test_data.describe().show()
 |    max|              19.1|
 +-------+------------------+
 """
+
+#import LinearRegression and train the model data for prediction
+
 from pyspark.ml.regression import LinearRegression
 ship_lr=LinearRegression(labelCol='crew')
 trai_ship_model=ship_lr.fit(train_data)
@@ -148,28 +182,20 @@ ship_result.rootMeanSquaredError
 
 #Out[110]: 1.3216524174375341
 
-train_data.describe().show()
-
-"""
-+-------+-----------------+
-|summary|             crew|
-+-------+-----------------+
-|  count|              119|
-|   mean| 7.49638655462186|
-| stddev|3.507724099438806|
-|    min|             0.59|
-|    max|             21.0|
-+-------+-----------------+
-"""
 ship_result.r2
+
 #Out[112]: 0.8424678316639028
 
 ship_result.meanSquaredError
+
 #Out[113]: 1.7467651125184778
 
 ship_result.meanAbsoluteError
+
 #Out[114]: 0.6965944124380937
 
+
+# finding the correlation between crew and passengers
 from pyspark.sql.functions import corr
 dflr.select(corr('crew','passengers')).show()
 
@@ -181,6 +207,8 @@ dflr.select(corr('crew','passengers')).show()
 +----------------------+
 """
 
+
+#finding the correlation between crew and cabins
 dflr.select(corr('crew','cabins')).show()
 """
 +------------------+
